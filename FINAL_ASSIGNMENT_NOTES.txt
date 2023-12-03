@@ -1,0 +1,5 @@
+To build and run the project; execute the "run_assignment" script.
+
+I am aware that there is still potential for improvement, 
+like instanced rendering, better object structure, and logic improvements
+but it works for now :)

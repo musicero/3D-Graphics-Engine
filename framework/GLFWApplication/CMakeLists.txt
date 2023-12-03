@@ -1,0 +1,15 @@
+project(GLFWApplication)
+add_library(${PROJECT_NAME} STATIC
+	GLFWApplication.h
+	GLFWApplication.cpp
+)
+
+target_include_directories(${PROJECT_NAME} PUBLIC
+	${CMAKE_CURRENT_SOURCE_DIR}
+) 
+
+target_link_libraries(${PROJECT_NAME} PRIVATE
+	glfw 
+	glad
+)
+
