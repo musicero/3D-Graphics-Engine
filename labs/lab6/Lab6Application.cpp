@@ -1,4 +1,4 @@
-#include "Lab5Application.h"
+#include "Lab6Application.h"
 #include "GeometricTools.h"
 #include "IndexBuffer.h"
 #include "PerspectiveCamera.h"
@@ -7,6 +7,11 @@
 #include "TextureManager.h"
 #include "VertexArray.h"
 #include "VertexBuffer.h"
+
+#include "shaders/chessFragment.h"
+#include "shaders/cubeFragment.h"
+#include "shaders/cubeVertex.h"
+#include "shaders/vertex.h"
 
 #include <memory>
 
@@ -18,167 +23,6 @@
 #include "glm/ext/matrix_clip_space.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 
-const std::string VertexShader = R"(
-	#version 430 core
-
-	layout(location = 0) in vec3 i_position;
-	layout(location = 1) in vec2 i_tcoords;
-  layout(location = 2) in vec3 i_normal;
-
-	out vec2 position2;
-	out vec2 vs_tcoords;
-	out vec3 vs_position;
-  out vec4 vs_normal;
-  out vec4 vs_fragPosition;
-
-	uniform mat4 u_Model;
-	uniform mat4 u_ViewProjection;
-
-	void main(){
-		gl_Position = u_ViewProjection * u_Model * vec4(i_position, 1.0);
-		position2 = vec2(i_position.x+0.5, i_position.y+0.5);
-
-		vs_tcoords = i_tcoords;
-		vs_position = i_position;
-    vs_normal = normalize(u_Model * vec4(i_normal, 1.0));
-    vs_fragPosition = u_Model * vec4(i_position, 1.0);
-	}
-)";
-
-const std::string chessFragmentShader = R"(
-	#version 430 core
-
-	layout(binding=0) uniform sampler2D u_floorTextureSampler;
-
-	in vec2 position2;
-	in vec2 vs_tcoords;
-  in vec4 vs_normal;
-  in vec4 vs_fragPosition;
-		
-  out vec4 color;
-
-	uniform ivec2 selector;	
-  uniform float u_ambientStrength = 1.0;
-  uniform float u_diffuseStrength;
-  uniform vec3 u_lightSourcePosition;
-  uniform vec3 u_diffuseColor;
-
-  uniform vec3 u_cameraPosition; 
-  uniform float u_specularStrength = 0.5;
-  uniform vec3 u_specularColor;
-
-	void main(){
-		vec4 m_color;
-		ivec2 tileIndex = ivec2(floor(position2 * 8));
-
-		if((tileIndex.x + tileIndex.y) % 2 == 0){
-			 m_color = vec4(0.0, 0.0, 0.0, 1.0);
-		} else {
-			 m_color = vec4(1.0, 1.0, 1.0, 1.0);
-		}
-
-		color = mix(m_color, texture(u_floorTextureSampler, vs_tcoords), 0.7);
-    color = vec4(u_ambientStrength*color.rgb, color.w);
-
-    vec3 lightDirection = normalize(vec3(u_lightSourcePosition - vs_fragPosition.xyz));
-    float diffuseStrength = max(dot(lightDirection, vs_normal.xyz), 0.0f) * u_diffuseStrength;
-
-    vec3 reflectedLight = normalize(reflect(-lightDirection, vs_normal.xyz));
-    vec3 observerDirection = normalize(u_cameraPosition - vs_fragPosition.xyz);
-    float specFactor = pow(max(dot(observerDirection, reflectedLight), 0.0), 12);
-    
-    vec3 diffuse = vec3(diffuseStrength)* u_diffuseColor;
-    vec3 ambient = vec3(u_ambientStrength);
-    vec3 specular = vec3(specFactor * u_specularStrength) * u_specularColor;
-
-
-    color = vec4(color.rgb * (ambient + diffuse + specular).rgb, 1.0);
-	}
-)";
-
-const std::string cubeVertexShader = R"(
-	#version 430 core
-
-	layout(location = 0) in vec3 i_position;
-	layout(location = 1) in vec2 i_tcoords;
-  layout(location = 2) in vec3 i_normal;
-
-	out vec2 vs_tcoords;
-	out vec3 vs_position;
-  out vec4 vs_normal;
-  out vec4 vs_normal_model;
-  out vec4 vs_fragPosition;
-
-	uniform mat4 u_Model;
-	uniform mat4 u_ViewProjection;
-  uniform mat4 u_Rotation;
-
-	void main(){
-		gl_Position = u_ViewProjection * u_Model * vec4(i_position, 1.0);
-
-		vs_tcoords = i_tcoords;
-		vs_position = i_position;
-    vs_normal_model = normalize(u_Model    * vec4(i_normal, 1.0));
-    vs_normal = normalize(u_Rotation * vec4(i_normal, 1.0));
-    vs_fragPosition = u_Model * vec4(i_position, 1.0);
-	}
-)";
-
-const std::string cubeFragmentShader = R"(
-	#version 430 core
-
-	layout(binding = 1) uniform samplerCube uTexture;
-
-	in vec3 vs_position;
-  in vec4 vs_normal;
-  in vec4 vs_normal_model;
-  in vec4 vs_fragPosition;
-  
-	out vec4 color;
-		
-	uniform int color_choice;
-
-  uniform float u_ambientStrength = 1.0;
-  uniform vec3 u_ambientColor;
-
-  uniform vec3 u_lightSourcePosition;
-  uniform float u_diffuseStrength;
-  uniform vec3 u_diffuseColor;
-
-  uniform vec3 u_cameraPosition; 
-  uniform float u_specularStrength = 0.5;
-  uniform vec3 u_specularColor;
-
-	void main(){
-		vec4 m_color;
-		if(color_choice == 1){
-			m_color = vec4(1.0, 0.0, 0.0, 1.0);
-		} else if(color_choice==2){
-			m_color = vec4(0.0, 1.0, 0.0, 1.0);
-		} else if(color_choice==3){
-			m_color = vec4(0.0, 0.0, 1.0, 1.0);
-		}
-		color = mix(m_color, texture(uTexture, vs_position), 0.7);
-
-    vec3 lightDirection = normalize(vec3(u_lightSourcePosition - vs_fragPosition.xyz));
-    float diffuseStrength = max(dot(lightDirection, vs_normal.xyz), 0.0f) * u_diffuseStrength;
-
-    vec3 reflectedLight = normalize(reflect(-lightDirection, vs_normal.xyz));
-    vec3 observerDirection = normalize(u_cameraPosition - vs_fragPosition.xyz);
-    float specFactor = pow(max(dot(observerDirection, reflectedLight), 0.0), 12);
-    
-    vec3 diffuse = color.rgb * vec3(diffuseStrength)*u_diffuseColor;
-    vec3 ambient = color.rgb * vec3(u_ambientStrength)*u_ambientColor;
-    vec3 specular = vec3(specFactor * u_specularStrength)* u_specularColor;
-    
-
-    //color = vec4(diffuse + ambient + specular, 1.0);
-    color = vec4(diffuse, 1.0);
-    //color = vec4(specular, 1.0); //only render with specular lighting
-
-	}
-)";
-
 glm::ivec2 selector = {0, 0};
 glm::fvec3 playerPos = {0.f, -3.f, 3.f};
 
@@ -186,11 +30,11 @@ GLuint CompileShader();
 void key_callback(GLFWwindow *window, int key, int scancode, int action,
                   int mods);
 
-Lab5Application::Lab5Application(const std::string &name,
+Lab6Application::Lab6Application(const std::string &name,
                                  const std::string &version)
     : GLFWApplication(name, version) {}
 
-unsigned Lab5Application::Run() {
+unsigned Lab6Application::Run() {
 
   glfwMakeContextCurrent(window);
   glfwSetKeyCallback(window, key_callback);
@@ -235,8 +79,8 @@ unsigned Lab5Application::Run() {
       chessboard.indices.data(), chessboard.indices.size());
   chessVertexArray->SetIndexBuffer(chessIndexBuffer);
 
-  std::shared_ptr<Shader> chessboardShader =
-      std::make_shared<Shader>(VertexShader, chessFragmentShader, "chessboard");
+  std::shared_ptr<Shader> chessboardShader = std::make_shared<Shader>(
+      chessVertexShader, chessFragmentShader, "chessboard");
 
   // -- chessboard transformation-matrix -- //
 

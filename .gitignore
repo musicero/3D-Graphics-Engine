@@ -1,0 +1,8 @@
+build/
+compile_commands.json
+.cache/
+Release/
+Debug/
+run.sh
+.vscode/
+assignment/code/AssignmentAppBck.cpp

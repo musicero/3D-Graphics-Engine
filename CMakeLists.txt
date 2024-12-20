@@ -56,7 +56,7 @@ target_include_directories(stb INTERFACE external/stb)
 #add_subdirectory(examples/example_5)
 
 add_subdirectory(framework)
-#add_subdirectory(labs)
+add_subdirectory(labs)
 add_subdirectory(assignment)
 
 # Add a subdirectory for assignments. Like the framework, this is commented out,
